@@ -7,10 +7,10 @@ File bluelib.c is compiled with swipl-ld into a shared object file to be loaded 
 Not handling pairing at the moment since there are usually tools for that on every platform.
 
 API:   
-       bt_scan(-List)         - returns MAC addresses of all available Bluetooth devices
-
-       bt_open(+MAC, -Index)  - returns integer index of open channel to Bluetooth device
-       
+        bt_scan(-List)         - returns MAC addresses of all available Bluetooth devices
+        
+        bt_open(+MAC, -Index)  - returns integer index of open channel to Bluetooth device
+        
        bt_close(+Index)       - closes connection to Bluetooth device
        
        bt_converse(+Index, +Send, ?Receive) -- Sends text in +Send to Bluetooth device and returns the response.
