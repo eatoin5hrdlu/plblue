@@ -81,19 +81,76 @@ char *converse(int s, char const *cmd) {
   return (char *)"NAK";  /* indicate communication failure */
 }
 
+
+#ifdef RPi
+const int pwmPin  = 18; // PWM LED - Broadcom pin 18, P1 pin 12
+const int upPin   = 23;   // Active-low button - Broadcom pin 23, P1 pin 16
+const int downPin = 24; // Active-low button - Broadcom pin 22, P1 pin 15
+
+const int maxSpeed = 500;
+const int minSpeed = 100;
+
+const int max_altitude = 600;
+const int min_altitude = 0;
+const int velocity_factor = 10;
+
+int velocity, actual_altitude;
+
+int rendezvous(char *addr)
+{
+  fprintf(stderr, "Entering rendezvous connecting...");
+  int s = bluetoothSocket(addr);
+  fprintf(stderr, "connected at %d",s);
+  wiringPiSetupGpio();          // Broadcom pin numbers
+  fprintf(stderr, "wpi setup");
+
+    pinMode(pwmPin, PWM_OUTPUT);  // Set Shuttle speed as PWM output
+    pinMode(upPin, INPUT);        // Increase Altitude
+    pinMode(downPin, INPUT);      // Decrease Altitude
+
+    pullUpDnControl(upPin, PUD_UP);   // Enable pull-up resistors
+    pullUpDnControl(downPin, PUD_UP);
+  fprintf(stderr, "start loop");
+    while(1) {
+      fprintf(stderr, "check buttons");
+      while (digitalRead(upPin) && !digitalRead(downPin)) {
+	converse(s, "v\n");
+        sleep(1);
+	fprintf(stderr, "up\n");
+      }
+      while (digitalRead(downPin) && !digitalRead(upPin)) {
+	converse(s, "d\n");
+        sleep(1);
+	fprintf(stderr, "down\n");
+      }
+      fprintf(stderr, "buttons checked");
+      sleep(1);
+
+      /* Re-adjust shuttle velocity according to actual altitude */
+
+      actual_altitude = atoi(converse(s, "a\n"));
+      fprintf(stderr, "Shuttle says altitude is %d\n", actual_altitude);
+
+      velocity = minSpeed + ((max_altitude - actual_altitude)/velocity_factor);
+      fprintf(stderr, "Computed velocity is %d\n", velocity);
+
+      if (velocity < minSpeed) velocity = minSpeed;
+      if (velocity > maxSpeed) velocity = maxSpeed;
+      fprintf(stderr, "Adjusted for range as %d\n", velocity);
+
+      pwmWrite(pwmPin, velocity);
+ }
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
   if (argc < 2 || strlen(argv[1]) != 17) {
     fprintf(stderr, "usage:  bluetest <BLUETOOTH-MACADDRESS>\n");
     exit(0);
   }
-  int s = bluetoothSocket(argv[1]);
-
-  converse(s, "l0\n");
-  sleep(1);
-  converse(s, "l1\n");
-  sleep(1);
-  converse(s, "l0\n");
+  rendezvous(argv[1]);
+  fprintf(stderr, "returned from rendezvous. WTF?\n");
   return 0;
 }
 
