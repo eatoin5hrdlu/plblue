@@ -12,15 +12,11 @@
 #else
 #include "plbluelinux.h"
 #endif
+int g_tries = 10;
 
-int bluetoothSocket(char *dest) {
-
-  initialize;
-  str2ba(dest, &addr.rc_bdaddr);
-  btport(1);
-
+int get_socket() {
   int s = -1;
-  while (s == -1) {
+  while (s == -1 && 0 < g_tries--) {
 #ifdef WINDOWS
     s = socket(AF_BTH, SOCK_STREAM, BTHPROTO_RFCOMM);
 #else
@@ -28,13 +24,25 @@ int bluetoothSocket(char *dest) {
 #endif
     if (s == -1) {
       fprintf(stderr, "Trying to create a Bluetooth socket...%d\n", get_error);
-      sleep(3);
+      sleep(2);
     }
   }
+  return s;
+}
 
-  while ( connect(s, (struct sockaddr *)&addr, sizeof(addr)) ) {
-    fprintf(stderr, "Trying to connect to %s WSA error %d\n", dest, get_error);
-    sleep(4);
+
+int bluetoothSocket(char *dest) {
+
+  initialize;
+  str2ba(dest, &addr.rc_bdaddr);
+  btport(1);
+  int s = get_socket();
+
+  while ( s != -1 && connect(s, (struct sockaddr *)&addr, sizeof(addr)) && 0<g_tries--) {
+    fprintf(stderr, "Trying to connect to %s error %d\n", dest, get_error);
+    close(s);
+    sleep(1);
+    s = get_socket();
   }
   return s;
 }
@@ -65,8 +73,11 @@ int main(int argc, char **argv)
   }
   int s = bluetoothSocket(argv[1]);
 
-  converse(s, "v\n");
-  converse(s, "d\n");
+  converse(s, "l0\n");
+  sleep(1);
+  converse(s, "l1\n");
+  sleep(1);
+  converse(s, "l0\n");
   return 0;
 }
 
