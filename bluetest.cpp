@@ -4,59 +4,37 @@
  * Linux      gcc -Wno-write-strings -o bluetest bluetest.cpp -lbluetooth
  * Windows     "          "               "           "       -lwsock32
  */
-#define __USE_W32_SOCKETS
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-#define WINDOWS 1
+#define LINUX 1
+// #define WINDOWS 1
 
 #ifdef WINDOWS
-#include "bluewin.h"
+#include "plbluewindows.h"
 #else
-#include <sys/socket.h>
-#include <wiringPi.h>
-#include <stdint.h>
-#include <unistd.h>
-#include <bluetooth/bluetooth.h>
-#include <bluetooth/rfcomm.h>
+#include "plbluelinux.h"
 #endif
 
 int bluetoothSocket(char *dest) {
 
-#ifdef WINDOWS
-  struct sockaddr_rc addr = {
-    32,
-    (bdaddr_t) 0xffffffff,
-    0x1101,
-    1
-  };
-  startWinSock();
-  AddrStringToBtAddr(dest, &addr.rc_bdaddr);
-  addr.port = 1;
-#else
-  struct sockaddr_rc addr = {
-    AF_BLUETOOTH,
-    (bdaddr_t){{0xff,0xff,0xff,0xff,0xff,0xff}},
-    (uint8_t) 1
-  };
-  //    .rc_family  = AF_BLUETOOTH,
-  //    .rc_bdaddr  = (bdaddr_t){{0xff,0xff,0xff,0xff,0xff,0xff}},
-  //    .rc_channel = (uint8_t) 1
-#endif
+  initialize;
+  str2ba(dest, &addr.rc_bdaddr);
+  btport(1);
 
   int s = -1;
   while (s == -1) {
+#ifdef WINDOWS
     s = socket(AF_BTH, SOCK_STREAM, BTHPROTO_RFCOMM);
+#else
+    s = socket(AF_BLUETOOTH, SOCK_STREAM, BTPROTO_RFCOMM);
+#endif
     if (s == -1) {
-      fprintf(stderr, "Trying to create a Bluetooth socket...%d\n", WSAGetLastError());
-      Sleep(3000);
+      fprintf(stderr, "Trying to create a Bluetooth socket...%d\n", get_error);
+      sleep(3);
     }
   }
 
   while ( connect(s, (struct sockaddr *)&addr, sizeof(addr)) ) {
-    fprintf(stderr, "Trying to connect to %s WSA error %d\n", dest, WSAGetLastError());
-    Sleep(4000);
+    fprintf(stderr, "Trying to connect to %s WSA error %d\n", dest, get_error);
+    sleep(4);
   }
   return s;
 }
@@ -70,7 +48,7 @@ char *converse(int s, char const *cmd) {
 
   write(s, cmd, strlen(cmd));
 
-  Sleep(4000);  // Give the guy a chance to respond fully
+  sleep(4);  // Give the guy a chance to respond fully
 
   bytes_read = read(s, buf, sizeof(buf));
   fprintf(stderr,"%s\n", buf);
@@ -79,60 +57,16 @@ char *converse(int s, char const *cmd) {
   return (char *)"NAK";  /* indicate communication failure */
 }
 
-const int pwmPin = 18; // PWM LED - Broadcom pin 18, P1 pin 12
-const int upPin = 23;   // Active-low button - Broadcom pin 23, P1 pin 16
-const int downPin = 22; // Active-low button - Broadcom pin 22, P1 pin 15
-
-const int maxSpeed = 500;
-const int minSpeed = 100;
-
-const int max_altitude = 600;
-const int min_altitude = 0;
-const int velocity_factor = 10;
-
-int velocity, actual_altitude;
-
 int main(int argc, char **argv)
 {
-    int s = bluetoothSocket("98:D3:31:30:2A:D1");
+  if (argc < 2 || strlen(argv[1]) != 17) {
+    fprintf(stderr, "usage:  bluetest <BLUETOOTH-MACADDRESS>\n");
+    exit(0);
+  }
+  int s = bluetoothSocket(argv[1]);
 
-#ifdef RPi
-    wiringPiSetupGpio();          // Broadcom pin numbers
-
-    pinMode(pwmPin, PWM_OUTPUT);  // Set Shuttle speed as PWM output
-
-    pinMode(upPin, INPUT);        // Increase Altitude
-    pinMode(downPin, INPUT);      // Decrease Altitude
-
-    pullUpDnControl(upPin, PUD_UP);   // Enable pull-up resistors
-    pullUpDnControl(downPin, PUD_UP);
-#else
-#endif
-
-  while(1) {
-      while (digitalRead(upPin) && !digitalRead(downPin)) {
-	converse(s, "v\n");
-        Sleep(1000);
-      }
-      while (digitalRead(downPin) && !digitalRead(upPin)) {
-	converse(s, "d\n");
-        Sleep(1000);
-      }
-
-      /* Re-adjust shuttle velocity according to actual altitude */
-
-      actual_altitude = atoi(converse(s, "a\n"));
-      fprintf(stderr, "Shuttle says altitude is %d\n", actual_altitude);
-
-      velocity = minSpeed + ((max_altitude - actual_altitude)/velocity_factor);
-      fprintf(stderr, "Computed velocity is %d\n", velocity);
-
-      if (velocity < minSpeed) velocity = minSpeed;
-      if (velocity > maxSpeed) velocity = maxSpeed;
-      fprintf(stderr, "Adjusted for range as %d\n", velocity);
-
-      pwmWrite(pwmPin, velocity);
- }
-    return 0;
+  converse(s, "v\n");
+  converse(s, "d\n");
+  return 0;
 }
 

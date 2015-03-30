@@ -1,3 +1,4 @@
+
 #define __USE_W32_SOCKETS
 #include <stdio.h>
 #include <stdlib.h>
@@ -20,6 +21,7 @@
 #define BDADDR_ANY   (&(BTH_ADDR){BTH_ADDR_NULL})
 #define bacpy(dst,src)      memcpy((dst),(src),sizeof(BTH_ADDR))
 #define bacmp(a,b)   memcmp((a),(b),sizeof(BTH_ADDR))
+#define get_error    WSAGetLastError()
 
 static struct sockaddr_rc addr = {
     32,
@@ -31,6 +33,7 @@ static struct sockaddr_rc addr = {
 #define initialize startWinSock()
 #define str2ba  AddrStringToBtAddr
 #define btport(n)  addr.port=n
+#define sleep(s)   Sleep(1000*s)
 
 int write(SOCKET s, char const *cmd, int size) { send(s, cmd, size, 0); }
 int read(SOCKET s, char *cmd, int size) { recv(s, cmd, size, 0); }

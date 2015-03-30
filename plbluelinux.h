@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
-#include <wiringPi.h>
 #include <stdint.h>
 #include <unistd.h>
 #include <bluetooth/bluetooth.h>
@@ -16,5 +15,6 @@ static struct sockaddr_rc addr = {
 
 #define initialize (void)0
 #define btport(n)  (void)0
+#define get_error  0
 
 
