@@ -53,10 +53,12 @@ pl_bt_close(term_t t1)
 }
 
 foreign_t
-pl_scan(term_t t1)
+pl_scan(term_t t1, term_t t2)
 { 
   term_t l = PL_copy_term_ref(t1);
   term_t a = PL_new_term_ref();
+  term_t l2 = PL_copy_term_ref(t2);
+  term_t a2 = PL_new_term_ref();
 
     inquiry_info *ii = NULL;
     int max_rsp, num_rsp;
@@ -84,11 +86,11 @@ pl_scan(term_t t1)
         ba2str(&(ii+i)->bdaddr, addr);
 	if ( !PL_unify_list(l, a, l) || !PL_unify_atom_chars(a, addr) )
 	  PL_fail;
-	//        memset(name, 0, sizeof(name));
-	//        if (hci_read_remote_name(sock, &(ii+i)->bdaddr, sizeof(name), name, 0) < 0)
-	//	  strcpy(name, "[unknown]");
-	//	if (PL_unify_string_chars(t2, name) == FALSE)
-	//	  PL_fail;
+	memset(name, 0, sizeof(name));
+	if (hci_read_remote_name(sock, &(ii+i)->bdaddr, sizeof(name), name, 0) < 0)
+	  strcpy(name, "[unknown]");
+	if ( !PL_unify_list(l2, a2, l2) || !PL_unify_atom_chars(a2, name) )
+	  PL_fail;
     }
     free( ii );
     close( sock );
@@ -183,14 +185,16 @@ int bluetoothSocket(char *dest) {
     PL_warning("Failed to create a Bluetooth socket");
     PL_fail;
   }
+  fprintf(stderr,"connecting...\n");
   while ( connect(s, (struct sockaddr *)&addr, sizeof(addr)) && 0 < tries-- ) {
+    fprintf(stderr,"try %d\n",tries);
     close(s);
     s = -1;
     while(s == -1 && 0 < tries--) {
-      sleep(1);
+      sleep(0.2);
       s = socket(AF_BLUETOOTH, SOCK_STREAM, BTPROTO_RFCOMM);
     }
-    PL_warning("Bluetooth connection failed. Retrying with new socket");
+    //    PL_warning("Bluetooth connection failed. Retrying with new socket");
   }
   if (tries < 0) {
     if (s != -1) close(s);
@@ -203,11 +207,11 @@ static PL_extension predicates [] =
 {
   { "bt_socket",    2, pl_bluetooth_socket, 0 },
   { "bt_converse",  3, pl_converse,         0 },
-  { "bt_scan",      1, pl_scan,             0 },
+  { "bt_scan",      2, pl_scan,             0 },
   { "bt_close",     1, pl_bt_close,         0 },
   { "bt_reset",     0, pl_bt_reset,         0 },
   { NULL, 0, NULL, 0 } /* terminator */
 };
 
-install_t install() { PL_load_extensions(predicates); }
+install_t install_plblue() { PL_load_extensions(predicates); }
 
