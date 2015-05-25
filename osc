@@ -1,0 +1,101 @@
+:- module(osc, [ sendOSC/3, sendOSC/4, sendOSC/5 ]).
+
+% sendOSC(Command,Types,Data)           Send to current Host
+% sendOSC(Host,Command,Types,Data)      Updates current Host (default Port)
+% sendOSC(Host:Port,Command,Types,Data)       "
+% sendOSC(Host,Port,Command,Types,Data)       "
+
+:- use_module(library(socket)).
+:- load_foreign_library(foreign(plblue)).  % For float_codes/2.
+:- dynamic currentHost/1, hostIPPortSocket/4.
+
+% module(osc) can establish and manage simultaneous communication with multiple servers
+% Messages can be directed to a specific Host:Port and subsequent undirected messages
+% will be sent to that server. Naming a previous Host in a sendOSC command will make
+% that host the new default server.
+%
+% default Host: localhost        Future: Use netstat to find a running SuperCollider
+% default Port:  57110                     and use it as the default Host:Port
+%
+
+defaultPort(57110).
+defaultHost(localhost).
+
+% sendCodes/1
+sendCodes(Message) :- currentHost(Host),!,sendOSC(Host, Message).
+sendCodes(Message) :- gethostname(Host),  sendOSC(Host,Message).
+
+sendCodes(Host, Message) :-
+    hostPortSocket(Host,IP,Port,Socket),
+    !,
+    udp_send(Socket, Message, IP:Port, []).
+
+sendCodes(Host, Message) :-
+   tcp_host_to_address(Host, IP),
+   defaultPort(Port),
+   udp_socket(Socket),
+   retractall(currentHost/1),
+   assert(currentHost(Host)),
+   assert(hostIPPortSocket(Host,IP,Port,Socket)),
+   udp_send(Socket, Message, IP:Port, []).
+
+show_bytes([],_) :-writeln(''),writeln('-------endofbytes').
+show_bytes([H|T],N) :-
+    ( mod(N,4) =:= 0 -> write(' | ') ; write(' ') ),
+    ( (H > 32, H < 127) -> put(H) ; write(H) ),
+    NN is N+1,
+    show_bytes(T,NN).
+
+% sendOSC/3
+sendOSC(Name,Types,Data) :- currentHost(Where), !, sendOSC(Where,Name,Types,Data).
+sendOSC(Name,Types,Data) :- defaultHost(Host),     sendOSC(Host,Name,Types,Data).
+
+% sendOSC/4
+sendOSC(Host:Port,Name,Types,Data) :- !, sendOSC(Host,Port,Name,Types,Data).
+sendOSC(Host,Name,Types,Data)      :-    defaultPort(Port),!,sendOSC(Host,Port,Name,Types,Data).
+
+% sendOSC/5
+sendOSC(Host,Port,Name,Types,Data) :-
+    hostIPPortSocket(Host,IP,Port,Socket),
+    !,
+    toosc(Name,Types,Data,OSCCodes,[]),
+    udp_send(Socket, OSCCodes, IP:Port, []).
+
+sendOSC(Host,Port,Name,Types,Data) :-
+    tcp_host_to_address(Host, IP),
+    udp_socket(Socket),
+    retractall(currentHost/1),
+    assert(currentHost(Host)),
+    assert(hostIPPortSocket(Host,IP,Port,Socket)),
+    toosc(Name,Types,Data,OSCCodes,[]),
+    udp_send(Socket, OSCCodes, IP:Port, []).
+
+debugout(OSCCodes) :-
+    show_bytes(OSCCodes,0),
+    atom_codes(X,OSCCodes),
+    writeln(sent(X)).
+
+
+int2bytes(I,[A,B,C,D|T],T) :-
+    D is I/\255,
+    C is (I>>8)/\255,
+    B is (I>>16)/\255,
+    A is (I>>24)/\255.
+
+% Grammar for constructing OSC Packets
+
+toosc(Addr,Types,Data) --> toosc(0'a,Addr),
+	                   [0',|Types], [0], padding(Types,2),
+			   toosc(Types,Data).
+toosc([],         [])  --> [].
+toosc([T|Ts], [D|Ds])  --> toosc(T,D), toosc(Ts,Ds).
+toosc(0'i,Int)         --> int2bytes(Int).
+toosc(0's,Str)         --> { atom_codes(Str,Chs)}, Chs, [0], padding(Chs,1).
+toosc(0'f,Flt)         --> {float_codes(Flt,Chs),reverse(Chs,R)}, R.
+toosc(0'a,Str)         --> { atom_codes(Str,Chs)}, [47|Chs], [0], padding(Chs,2).
+
+padding(Chs,Extra) --> { length(Chs,L), Pad is 4-mod(L+Extra,4) }, pad(Pad).
+
+pad(4) --> !.
+pad(0) --> !.
+pad(N) --> [0],{NN is N-1},pad(NN).
