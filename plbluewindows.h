@@ -55,7 +55,8 @@ ULONG AddrStringToBtAddr(IN const char * pszRemoteAddr, OUT BTH_ADDR * pRemoteBt
           &ulAddrData[0],&ulAddrData[1],&ulAddrData[2],&ulAddrData[3],&ulAddrData[4],&ulAddrData[5]);
 
    // Pack 6 integers into a BTH_ADDR
-   for ( int i=0; i<6; i++ )
+   int i;
+   for (i=0; i<6; i++ )
    {
        BtAddrTemp = (BTH_ADDR)( ulAddrData[i] & 0xFF );
        *pRemoteBtAddr = ( (*pRemoteBtAddr) << 8 ) + BtAddrTemp;

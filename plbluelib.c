@@ -3,14 +3,23 @@
 #define NULL ((void *)0)
 #endif
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <sys/socket.h>
-#include <bluetooth/bluetooth.h>
-#include <bluetooth/rfcomm.h>
-#include <bluetooth/hci.h>
-#include <bluetooth/hci_lib.h>
+// #define LINUX 1
+#define WINDOWS 1
+
+#ifdef WINDOWS
+#include "plbluewindows.h"
+#else
+#include "plbluelinux.h"
+#endif
+
+//#include <stdio.h>
+//#include <stdlib.h>
+//#include <unistd.h>
+//#include <sys/socket.h>
+//#include <bluetooth/bluetooth.h>
+//#include <bluetooth/rfcomm.h>
+//#include <bluetooth/hci.h>
+//#include <bluetooth/hci_lib.h>
 
 #define MAX_SOCKETS 10
 static int next_socket = 0;
@@ -55,6 +64,10 @@ pl_bt_close(term_t t1)
 foreign_t
 pl_scan(term_t t1, term_t t2)
 { 
+#ifdef WINDOWS
+        PL_warning("bt_scan/2 not implemented on Windows");
+        PL_fail;
+#else
   term_t l = PL_copy_term_ref(t1);
   term_t a = PL_new_term_ref();
   term_t l2 = PL_copy_term_ref(t2);
@@ -95,6 +108,7 @@ pl_scan(term_t t1, term_t t2)
     free( ii );
     close( sock );
     return PL_unify_nil(l);
+#endif
 }
 
 // Note that this handles a stream containing lines ending in \r\n (not portable yet)
@@ -172,11 +186,20 @@ pl_bluetooth_socket(term_t mac, term_t n)
 int bluetoothSocket(char *dest) {
   int tries = 10;
 
+#ifdef WINDOWS
+  struct sockaddr_rc addr = {
+    AF_BLUETOOTH,
+    0,
+    (uint8_t) 1
+  };
+#else
   struct sockaddr_rc addr = {
     .rc_family  = AF_BLUETOOTH,
     .rc_bdaddr  = (bdaddr_t){{0xff,0xff,0xff,0xff,0xff,0xff}},
     .rc_channel = (uint8_t) 1
   };
+#endif
+
 
   str2ba( dest, &addr.rc_bdaddr );
 
@@ -202,6 +225,49 @@ int bluetoothSocket(char *dest) {
   }
   return s;
 }
+static inline
+void cp_net_order(char * to, char * from, int size)  /* must be a power of 2 */
+{ 	register int i = 0, j = 0;
+
+#ifdef WORDS_BIGENDIAN
+	j = size - 1;
+#endif
+	for(i = 0; i < size; i++)
+		to[i] = from[i ^ j];
+}
+
+foreign_t pl_float_codes(term_t Number, term_t Codes)
+{
+	union
+		{
+		float asNumber;
+		char asCodes[sizeof(float)];
+		} val, val1;
+
+	char *data;
+	size_t len;
+	double tmp;
+
+	if(PL_get_float(Number, &tmp))
+		{ val.asNumber = (float)tmp;
+
+		cp_net_order(val1.asCodes, val.asCodes, sizeof(val1.asCodes));
+
+		return PL_unify_list_ncodes(Codes, sizeof(val1.asCodes), val1.asCodes);
+		}
+
+	if(PL_get_list_nchars(Codes, &len, &data, CVT_LIST)
+			&& len == sizeof(val.asCodes))
+		{ cp_net_order(val.asCodes, data, sizeof(val.asCodes));
+
+		tmp = val.asNumber;
+
+		return PL_unify_float(Number, tmp);
+		}
+
+        PL_warning("float_codes/2: Instatiation error");
+        PL_fail;
+}
 
 static PL_extension predicates [] =
 {
@@ -210,8 +276,8 @@ static PL_extension predicates [] =
   { "bt_scan",      2, pl_scan,             0 },
   { "bt_close",     1, pl_bt_close,         0 },
   { "bt_reset",     0, pl_bt_reset,         0 },
+  { "float_codes",  2, pl_float_codes,      0 },
   { NULL, 0, NULL, 0 } /* terminator */
 };
 
 install_t install_plblue() { PL_load_extensions(predicates); }
-
