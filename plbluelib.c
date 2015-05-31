@@ -3,9 +3,9 @@
 #define NULL ((void *)0)
 #endif
 
-// #define LINUX 1
-#define WINDOWS 1
-
+#define LINUX 1
+//#define WINDOWS 1
+#define WORDS__BIGENDIAN 1
 #ifdef WINDOWS
 #include "plbluewindows.h"
 #else
@@ -61,12 +61,39 @@ pl_bt_close(term_t t1)
   PL_succeed;
 }
 
+foreign_t dcg_float_codes(term_t Number, term_t Codes, term_t Tail)
+{
+  term_t l = PL_copy_term_ref(Codes);
+  term_t a = PL_new_term_ref();
+   union { float asNumber; char asCodes[sizeof(float)];} val, val1;
+   int j = 0;
+
+#define WORDS_BIGENDIAN 1
+#ifdef WORDS_BIGENDIAN
+   j = sizeof(float) - 1;
+#endif
+
+  double tmp;
+  if(PL_get_float(Number, &tmp))
+    {
+      val.asNumber = (float)tmp;
+      int i;
+      for (i=0;i<sizeof(float);i++) {
+	if (    !PL_unify_list(l, a, l)
+		|| !PL_unify_integer(a, (val.asCodes[i^j]&0xFF)) )
+	  PL_fail;
+      }
+      return PL_unify(l, Tail);
+    }
+  PL_fail;
+}
+
 foreign_t
 pl_scan(term_t t1, term_t t2)
 { 
 #ifdef WINDOWS
-        PL_warning("bt_scan/2 not implemented on Windows");
-        PL_fail;
+  PL_warning("bt_scan/2 not implemented on Windows");
+  PL_fail;
 #else
   term_t l = PL_copy_term_ref(t1);
   term_t a = PL_new_term_ref();
@@ -264,8 +291,6 @@ foreign_t pl_float_codes(term_t Number, term_t Codes)
 
 		return PL_unify_float(Number, tmp);
 		}
-
-        PL_warning("float_codes/2: Instatiation error");
         PL_fail;
 }
 
@@ -277,7 +302,10 @@ static PL_extension predicates [] =
   { "bt_close",     1, pl_bt_close,         0 },
   { "bt_reset",     0, pl_bt_reset,         0 },
   { "float_codes",  2, pl_float_codes,      0 },
+  { "float_codes",  3, dcg_float_codes,     0 },
   { NULL, 0, NULL, 0 } /* terminator */
 };
 
 install_t install_plblue() { PL_load_extensions(predicates); }
+
+
