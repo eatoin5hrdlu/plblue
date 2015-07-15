@@ -4,8 +4,8 @@
  * Linux      gcc -Wno-write-strings -o bluetest bluetest.cpp -lbluetooth
  * Windows     "          "               "           "       -lwsock32
  */
-#define LINUX 1
-// #define WINDOWS 1
+//#define LINUX 1
+#define WINDOWS 1
 
 #ifdef WINDOWS
 #include "plbluewindows.h"
@@ -40,7 +40,11 @@ int bluetoothSocket(char *dest) {
 
   while ( s != -1 && connect(s, (struct sockaddr *)&addr, sizeof(addr)) && 0<g_tries--) {
     fprintf(stderr, "Trying to connect to %s error %d\n", dest, get_error);
+#ifdef LINUX
     close(s);
+#else
+    closesocket(s);
+#endif
     sleep(1);
     s = get_socket();
   }
@@ -73,11 +77,28 @@ int main(int argc, char **argv)
   }
   int s = bluetoothSocket(argv[1]);
 
-  converse(s, "l0\n");
+  converse(s, "i\n");
   sleep(1);
-  converse(s, "l1\n");
+  converse(s, "p11\n");
   sleep(1);
-  converse(s, "l0\n");
+  converse(s, "p10\n");
+  sleep(1);
+  converse(s, "p21\n");
+  sleep(1);
+  converse(s, "p20\n");
+  sleep(1);
+  converse(s, "p31\n");
+  sleep(1);
+  converse(s, "p30\n");
+  sleep(1);
+  converse(s, "p41\n");
+  sleep(1);
+  converse(s, "p40\n");
+  sleep(1);
+  converse(s, "p51\n");
+  sleep(1);
+  converse(s, "p50\n");
+  sleep(1);
   return 0;
 }
 

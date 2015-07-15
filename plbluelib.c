@@ -5,9 +5,10 @@
 
 // #define LINUX 1
 #define WINDOWS 1
-
+#define WORDS__BIGENDIAN 1
 #ifdef WINDOWS
 #include "plbluewindows.h"
+#define close closesocket
 #else
 #include "plbluelinux.h"
 #endif
@@ -26,7 +27,65 @@ static int next_socket = 0;
 static int sockets[MAX_SOCKETS] = {-1,-1,-1,-1,-1,-1,-1,-1,-1,-1};
 
 static char buf[1024];
+static int plblueonce = 0;
 
+
+void notrace(void) {
+  term_t nt = PL_new_term_ref();
+  PL_unify_atom_chars(nt, "notrace");
+  PL_call(nt,NULL);
+}
+
+static char _hex_chars[16] = "0123456789ABCDEF";
+
+void btad2string(unsigned long ba, char *dest) {
+int i;
+unsigned char bytes[6];
+    for( i=0; i<6; i++ ) {
+        bytes[5-i] = (unsigned char) ((ba >> (i*8)) & 0xff);
+    }
+    for (i=5; i>-1; i--) {
+        dest[(5-i)*3] = _hex_chars[(bytes[5-i]>>4)&0x0F];
+        dest[(5-i)*3+1] = _hex_chars[bytes[5-i]&0x0F];
+	if ( ((5-i)*3+2)==17) dest[(5-i)*3+2] = 0;
+        else                  dest[(5-i)*3+2] = ':';
+    }
+}
+
+void
+ba2str( BTH_ADDR ba, char *addr )
+{
+    int i;
+    unsigned char bytes[6];
+    for( i=0; i<6; i++ ) {
+        bytes[5-i] = (unsigned char) ((ba >> (i*8)) & 0xff);
+    }
+    for (i=0; i< 6; i++)
+    sprintf(addr, "%02X:%02X:%02X:%02X:%02X:%02X", 
+            bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5] );
+}
+
+void mystr2ba(char *btaddr, BTH_ADDR *addr)
+{
+  char buff[100];
+  strcpy(buf,btaddr);
+  char *cp = &buf[0];
+  int i,j,bitshift,byteshift;
+  unsigned long long shift, value;
+  unsigned long long packed = 0L;
+  for(i=0;i<6;i++) {
+    cp = &buf[i*3];
+    buf[(i*3)+2] = 0;
+    value = (0xFF & strtol(cp,NULL,16));
+    byteshift = (15-(3*i))/3;
+    bitshift = byteshift * 8;
+    for (j=0; j<byteshift; j++) {
+        value = value<<8;
+    }
+    packed |= value;
+  }
+  *addr = packed;
+}
 
 // Close all open bluetooth sockets and re-initialize socket table
 foreign_t
@@ -46,7 +105,6 @@ pl_bt_reset()
   return TRUE;
 }
 
-
 foreign_t
 pl_bt_close(term_t t1)
 { 
@@ -61,12 +119,39 @@ pl_bt_close(term_t t1)
   PL_succeed;
 }
 
+foreign_t dcg_float_codes(term_t Number, term_t Codes, term_t Tail)
+{
+  term_t l = PL_copy_term_ref(Codes);
+  term_t a = PL_new_term_ref();
+   union { float asNumber; char asCodes[sizeof(float)];} val, val1;
+   int j = 0;
+
+#define WORDS_BIGENDIAN 1
+#ifdef WORDS_BIGENDIAN
+   j = sizeof(float) - 1;
+#endif
+
+  double tmp;
+  if(PL_get_float(Number, &tmp))
+    {
+      val.asNumber = (float)tmp;
+      int i;
+      for (i=0;i<sizeof(float);i++) {
+	if (    !PL_unify_list(l, a, l)
+		|| !PL_unify_integer(a, (val.asCodes[i^j]&0xFF)) )
+	  PL_fail;
+      }
+      return PL_unify(l, Tail);
+    }
+  PL_fail;
+}
+
 foreign_t
 pl_scan(term_t t1, term_t t2)
 { 
 #ifdef WINDOWS
-        PL_warning("bt_scan/2 not implemented on Windows");
-        PL_fail;
+  /*  PL_warning("bt_scan/2 not implemented on Windows"); */
+  PL_fail;
 #else
   term_t l = PL_copy_term_ref(t1);
   term_t a = PL_new_term_ref();
@@ -96,7 +181,7 @@ pl_scan(term_t t1, term_t t2)
     if( num_rsp < 0 ) perror("hci_inquiry");
 
     for (i = 0; i < num_rsp; i++) {
-        ba2str(&(ii+i)->bdaddr, addr);
+        btad2string(&(ii+i)->bdaddr, addr);
 	if ( !PL_unify_list(l, a, l) || !PL_unify_atom_chars(a, addr) )
 	  PL_fail;
 	memset(name, 0, sizeof(name));
@@ -183,42 +268,42 @@ pl_bluetooth_socket(term_t mac, term_t n)
 }
 /* Returns file descriptor for a Bluetooth connection */
 
-int bluetoothSocket(char *dest) {
-  int tries = 10;
 
+int bluetoothSocket(char *dest) {
+  char buf[100];
+  int tries = 10;
+  if (plblueonce == 0) { plblueonce = 1; initialize;}
+    mystr2ba( dest, &addr.rc_bdaddr );
+//    btad2string(addr.rc_bdaddr, buf);
+  //  ba2str(addr.rc_bdaddr, buf);
+  btport(1);
 #ifdef WINDOWS
-  struct sockaddr_rc addr = {
-    AF_BLUETOOTH,
-    0,
-    (uint8_t) 1
-  };
+  int s = socket(AF_BTH, SOCK_STREAM, BTHPROTO_RFCOMM);
 #else
-  struct sockaddr_rc addr = {
-    .rc_family  = AF_BLUETOOTH,
-    .rc_bdaddr  = (bdaddr_t){{0xff,0xff,0xff,0xff,0xff,0xff}},
-    .rc_channel = (uint8_t) 1
-  };
+  int s = socket(AF_BLUETOOTH, SOCK_STREAM, BTPROTO_RFCOMM);
 #endif
 
-
-  str2ba( dest, &addr.rc_bdaddr );
-
-  int s = socket(AF_BLUETOOTH, SOCK_STREAM, BTPROTO_RFCOMM);
   if (s == -1) {
     PL_warning("Failed to create a Bluetooth socket");
     PL_fail;
   }
-  fprintf(stderr,"connecting...\n");
   while ( connect(s, (struct sockaddr *)&addr, sizeof(addr)) && 0 < tries-- ) {
-    fprintf(stderr,"try %d\n",tries);
-    close(s);
-    s = -1;
-    while(s == -1 && 0 < tries--) {
-      sleep(0.2);
-      s = socket(AF_BLUETOOTH, SOCK_STREAM, BTPROTO_RFCOMM);
-    }
-    //    PL_warning("Bluetooth connection failed. Retrying with new socket");
+    PL_warning("connect returned non zero %s %d",dest, WSAGetLastError());
+      notrace();
+      close(s);
+      s = -1;
+      while(s == -1 && 0 < tries--) {
+	sleep(0.2);
+#ifdef WINDOWS
+	s = socket(AF_BTH, SOCK_STREAM, BTHPROTO_RFCOMM);
+#else
+	s = socket(AF_BLUETOOTH, SOCK_STREAM, BTPROTO_RFCOMM);
+#endif
+      }
+      PL_warning("Bluetooth connection failed. Retrying with new socket");
   }
+  PL_warning("after connect");
+  notrace();
   if (tries < 0) {
     if (s != -1) close(s);
     return -1;
@@ -277,7 +362,10 @@ static PL_extension predicates [] =
   { "bt_close",     1, pl_bt_close,         0 },
   { "bt_reset",     0, pl_bt_reset,         0 },
   { "float_codes",  2, pl_float_codes,      0 },
+  { "float_codes",  3, dcg_float_codes,     0 },
   { NULL, 0, NULL, 0 } /* terminator */
 };
 
 install_t install_plblue() { PL_load_extensions(predicates); }
+install_t install() { PL_load_extensions(predicates); }
+
