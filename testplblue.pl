@@ -24,9 +24,12 @@ allon :-
 
 alloff :-
     lagoon_socket(S),
-    bt_converse(S,['m0\n'],_),
-    bt_converse(S,['l0\n'],_),
-    bt_converse(S,['a0\n'],_).
+    bt_converse(S,['m0\n'],R1),
+    writeln(reply(R1)),
+    bt_converse(S,['l0\n'],R2),
+    writeln(reply(R2)),
+    bt_converse(S,['a0\n'],R3),
+    writeln(reply(R3)).
 
 
 %    bt_scan([X|_],[N|_]),
@@ -35,12 +38,12 @@ alloff :-
 
 main :-
     writeln('start test'),
-    ( bt_scan([Y|_],[N|_]) ; true ),
+    ( bt_scan([X|_],[N|_]) ; true ),
     writeln('after scan'),
     lagoon(X),
     bt_socket(X, S),
     writeln(socketEstablished(X,S,N)),
-    ( N == 'Lagoon' ->
+    ( N = 'Lagoon' ->
 	assert(lagoon_socket(S))
     ;
 	true

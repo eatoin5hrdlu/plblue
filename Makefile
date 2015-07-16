@@ -10,7 +10,7 @@ CYGCC= -cc "c:/cygwin/bin/gcc"
 CYGCPP= -c++ "C:/cygwin/bin/i686-pc-cygwin-g++.exe"
 CYG=$(CYGCC)
 
-all :	rendezvous bluetest plblue.so
+all :	plblue.dll test test1
 
 rendezvous : rendezvous.cpp
 	gcc -Wno-write-strings -o rendezvous rendezvous.cpp $(LIBS)
@@ -29,6 +29,6 @@ plblue.dll :	plbluelib.c Makefile
 
 
 test : plblue.dll
-	swipl -s testplblue.pl -g main
+	swipl-win -s testplblue.pl -g main
 
 
