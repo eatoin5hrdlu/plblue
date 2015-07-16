@@ -1,6 +1,15 @@
-#LIBS = -lbluetooth -lwiringPi  # Linux 
-LIBS = -lwsock32 -lc # Windows
-#LIBS=/usr/i686-pc-mingw32/sys-root/mingw/lib/libwsock32.a -lc
+#LIBS = -lbluetooth -lwiringPi  # RPi
+
+LIBS = -lbluetooth              # Linux 
+SWIPL = swipl
+SHARED=plblue.so
+OSDEF=-DLINUX=1
+
+#LIBS = -lwsock32 -lc           # Windows
+#SWIPL=swipl-win
+#SHARED=plblue.dll
+#OSDEF=-DWINDOWS=1
+
 LAGOON=98:D3:31:70:2B:70
 PUMPS=98:d3:31:40:1d:a4
 MINGCC= -cc i686-pc-mingw32-gcc-4.7.3.exe
@@ -12,11 +21,14 @@ CYG=$(CYGCC)
 
 all :	plblue.dll test test1
 
+install: $(SHARED)
+	cp $(SHARED) ../PACE
+
 rendezvous : rendezvous.cpp
 	gcc -Wno-write-strings -o rendezvous rendezvous.cpp $(LIBS)
 
 bluetest : bluetest.cpp Makefile
-	gcc -Wno-write-strings -o bluetest bluetest.cpp $(LIBS)
+	gcc -Wno-write-strings $(OSDEF) -o bluetest bluetest.cpp $(LIBS)
 
 test1 : bluetest
 	./bluetest $(LAGOON)
@@ -27,8 +39,7 @@ plblue.so :	plbluelib.c
 plblue.dll :	plbluelib.c Makefile
 	swipl-ld -Wpointer-to-int-cast -Wno-write-strings -Wno-unused-result -dll -shared -o plblue plbluelib.c $(LIBS)
 
-
-test : plblue.dll
-	swipl-win -s testplblue.pl -g main
+test : $(SHARED)
+	$(SWIPL) -s testplblue.pl -g main
 
 

@@ -4,8 +4,6 @@
  * Linux      gcc -Wno-write-strings -o bluetest bluetest.cpp -lbluetooth
  * Windows     "          "               "           "       -lwsock32
  */
-//#define LINUX 1
-#define WINDOWS 1
 
 #ifdef WINDOWS
 #include "plbluewindows.h"

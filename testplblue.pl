@@ -1,5 +1,7 @@
+:- current_prolog_flag(windows,true)
+   -> use_foreign_library(foreign(plblue)), writeln('plblue.dll loaded')
+    ; use_foreign_library(plblue), writeln('plblue.so loaded').
 
-:- use_foreign_library(foreign(plblue)), writeln('plblue.so loaded').
 :- dynamic lagoon_socket/1.
 
 lagoon('98:D3:31:70:2B:70').

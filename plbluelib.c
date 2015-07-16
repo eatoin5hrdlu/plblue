@@ -3,8 +3,8 @@
 #define NULL ((void *)0)
 #endif
 
-// #define LINUX 1
-#define WINDOWS 1
+#define LINUX 1
+//#define WINDOWS 1
 #define WORDS__BIGENDIAN 1
 #ifdef WINDOWS
 #include "plbluewindows.h"
@@ -35,7 +35,7 @@ void notrace(void) {
   PL_unify_atom_chars(nt, "notrace");
   PL_call(nt,NULL);
 }
-
+#ifdef WINDOWS
 static char _hex_chars[16] = "0123456789ABCDEF";
 
 void btad2string(unsigned long ba, char *dest) {
@@ -86,7 +86,7 @@ void mystr2ba(char *btaddr, BTH_ADDR *addr)
   }
   *addr = packed;
 }
-
+#endif
 // Close all open bluetooth sockets and re-initialize socket table
 foreign_t
 pl_bt_reset()
@@ -181,7 +181,11 @@ pl_scan(term_t t1, term_t t2)
     if( num_rsp < 0 ) perror("hci_inquiry");
 
     for (i = 0; i < num_rsp; i++) {
+#ifdef WINDOWS
         btad2string(&(ii+i)->bdaddr, addr);
+#else
+        ba2str(&(ii+i)->bdaddr, addr);
+#endif
 	if ( !PL_unify_list(l, a, l) || !PL_unify_atom_chars(a, addr) )
 	  PL_fail;
 	memset(name, 0, sizeof(name));
@@ -273,11 +277,13 @@ int bluetoothSocket(char *dest) {
   char buf[100];
   int tries = 10;
   if (plblueonce == 0) { plblueonce = 1; initialize;}
-    mystr2ba( dest, &addr.rc_bdaddr );
-//    btad2string(addr.rc_bdaddr, buf);
-  //  ba2str(addr.rc_bdaddr, buf);
-  btport(1);
 #ifdef WINDOWS
+    mystr2ba( dest, &addr.rc_bdaddr );
+#else
+    str2ba( dest, &addr.rc_bdaddr );
+#endif
+  btport(1);
+#ifdef INDOWS
   int s = socket(AF_BTH, SOCK_STREAM, BTHPROTO_RFCOMM);
 #else
   int s = socket(AF_BLUETOOTH, SOCK_STREAM, BTPROTO_RFCOMM);
@@ -288,7 +294,11 @@ int bluetoothSocket(char *dest) {
     PL_fail;
   }
   while ( connect(s, (struct sockaddr *)&addr, sizeof(addr)) && 0 < tries-- ) {
+#ifdef WINDOWS
     PL_warning("connect returned non zero %s %d",dest, WSAGetLastError());
+#else
+    PL_warning("connect returned non zero %s %d",dest, 0);
+#endif
       notrace();
       close(s);
       s = -1;
