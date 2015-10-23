@@ -4,6 +4,7 @@
  * Linux      gcc -Wno-write-strings -o bluetest bluetest.cpp -lbluetooth
  * Windows     "          "               "           "       -lwsock32
  */
+#include <errno.h>
 
 #ifdef WINDOWS
 #include "plbluewindows.h"
@@ -14,6 +15,10 @@ int g_tries = 10;
 
 int get_socket() {
   int s = -1;
+  struct timeval timeout;      
+  timeout.tv_sec = 10;
+  timeout.tv_usec = 0;
+
   while (s == -1 && 0 < g_tries--) {
 #ifdef WINDOWS
     s = socket(AF_BTH, SOCK_STREAM, BTHPROTO_RFCOMM);
@@ -25,6 +30,14 @@ int get_socket() {
       sleep(2);
     }
   }
+  if (setsockopt (s, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout,sizeof(timeout)) < 0)
+    {
+      perror("setsockopt read timeout failed\n");
+    }
+  if (setsockopt (s, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout,sizeof(timeout)) < 0)
+    {
+      perror("setsockopt send timeout failed\n");
+    }
   return s;
 }
 
@@ -55,16 +68,14 @@ char *converse(int s, char const *cmd) {
   static char buf[1024];
   int bytes_read;
   memset(buf,0,1024);
-
   write(s, cmd, strlen(cmd));
 
   sleep(4);  // Give the guy a chance to respond fully
 
   bytes_read = read(s, buf, sizeof(buf));
-  fprintf(stderr,"%s\n", buf);
   if( bytes_read > 0 ) return buf;
 
-  return (char *)"NAK";  /* indicate communication failure */
+  return (char *)"timeout.\r\nend_of_data\r\n";  /* indicate communication failure */
 }
 
 int main(int argc, char **argv)
@@ -75,27 +86,14 @@ int main(int argc, char **argv)
   }
   int s = bluetoothSocket(argv[1]);
 
-  converse(s, "i\n");
-  sleep(1);
-  converse(s, "p11\n");
-  sleep(1);
-  converse(s, "p10\n");
-  sleep(1);
-  converse(s, "p21\n");
-  sleep(1);
-  converse(s, "p20\n");
-  sleep(1);
-  converse(s, "p31\n");
-  sleep(1);
-  converse(s, "p30\n");
-  sleep(1);
-  converse(s, "p41\n");
-  sleep(1);
-  converse(s, "p40\n");
-  sleep(1);
-  converse(s, "p51\n");
-  sleep(1);
-  converse(s, "p50\n");
+  int ncmds = 3;
+  char *cmds[3] = { "i\n", 
+		    "t\n",
+		    "b\n" };
+  for (int i =0; i<ncmds; i++) {
+    fprintf(stderr, "sent[%s] got[%s]\n", cmds[i], converse(s, cmds[i]));
+    sleep(1);
+  }
   sleep(1);
   return 0;
 }

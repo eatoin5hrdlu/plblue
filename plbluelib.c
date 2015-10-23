@@ -1,10 +1,9 @@
 #include <SWI-Prolog.h>
+#include <errno.h>
 #ifndef NULL
 #define NULL ((void *)0)
 #endif
 
-#define LINUX 1
-//#define WINDOWS 1
 #define WORDS__BIGENDIAN 1
 #ifdef WINDOWS
 #include "plbluewindows.h"
@@ -253,6 +252,8 @@ pl_converse(term_t s, term_t l, term_t r)
     sleep(1);  // Give the guy a chance to respond fully
     bytes_read = read(sockets[index],&buf[total_bytes], sizeof(buf)-total_bytes);
   }
+  if (bytes_read == -1 && (errno == EAGAIN || errno == EWOULDBLOCK))
+    sprintf(buf,"timeout(%d).\r\nend_of_data\r\n", index);
   return PL_unify_string_nchars(r, total_bytes, buf);
 }
 
@@ -261,6 +262,10 @@ pl_bluetooth_socket(term_t mac, term_t n)
 {
   int s;
   char *dest;
+  struct timeval timeout;      
+  timeout.tv_sec = 10;
+  timeout.tv_usec = 0;
+
   PL_get_atom_chars(mac,&dest);
   s = bluetoothSocket(dest);
   if (s == -1)
@@ -268,6 +273,18 @@ pl_bluetooth_socket(term_t mac, term_t n)
   if (PL_unify_integer(n, (intptr_t)next_socket) == FALSE)
     PL_fail;
   sockets[next_socket++] = s;
+
+  if (setsockopt (s, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout,sizeof(timeout)) < 0)
+    {
+      error("setsockopt read timeout failed\n");
+      PL_fail;
+    }
+  if (setsockopt (s, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout,sizeof(timeout)) < 0)
+    {
+      error("setsockopt send timeout failed\n");
+      PL_fail;
+    }
+
   PL_succeed;
 }
 /* Returns file descriptor for a Bluetooth connection */
@@ -312,8 +329,8 @@ int bluetoothSocket(char *dest) {
       }
       PL_warning("Bluetooth connection failed. Retrying with new socket");
   }
-  PL_warning("after connect");
-  notrace();
+  //  PL_warning("after connect");
+  //  notrace();
   if (tries < 0) {
     if (s != -1) close(s);
     return -1;
