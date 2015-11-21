@@ -168,6 +168,7 @@ pl_scan(term_t t1, term_t t2)
     sock = hci_open_dev( dev_id );
     if (dev_id < 0 || sock < 0) {
         PL_warning("problem opening socket");
+	notrace();
         PL_fail;
     }
 
@@ -247,6 +248,8 @@ pl_converse(term_t s, term_t l, term_t r)
   bytes_read = read(sockets[index], &buf[total_bytes], sizeof(buf)-total_bytes);
   while (bytes_read > 0) {
     total_bytes += bytes_read;
+    if (check_for(buf,total_bytes,"end_of_data.\r\n")) // Quit reading
+      break;
     if (check_for(buf,total_bytes,"end_of_data\r\n")) // Quit reading
       break;
     sleep(1);  // Give the guy a chance to respond fully
@@ -300,7 +303,7 @@ int bluetoothSocket(char *dest) {
     str2ba( dest, &addr.rc_bdaddr );
 #endif
   btport(1);
-#ifdef INDOWS
+#ifdef WINDOWS
   int s = socket(AF_BTH, SOCK_STREAM, BTHPROTO_RFCOMM);
 #else
   int s = socket(AF_BLUETOOTH, SOCK_STREAM, BTPROTO_RFCOMM);
@@ -308,6 +311,7 @@ int bluetoothSocket(char *dest) {
 
   if (s == -1) {
     PL_warning("Failed to create a Bluetooth socket");
+    notrace();
     PL_fail;
   }
   while ( connect(s, (struct sockaddr *)&addr, sizeof(addr)) && 0 < tries-- ) {
@@ -328,9 +332,9 @@ int bluetoothSocket(char *dest) {
 #endif
       }
       PL_warning("Bluetooth connection failed. Retrying with new socket");
+      notrace();
   }
   //  PL_warning("after connect");
-  //  notrace();
   if (tries < 0) {
     if (s != -1) close(s);
     return -1;
