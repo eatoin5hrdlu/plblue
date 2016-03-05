@@ -4,6 +4,7 @@
 
 :- dynamic lagoon_socket/1.
 
+cellstat('98:D3:31:20:23:36').
 lagoon('98:D3:31:70:2B:70').
 pumps('98:D3:31:40:1D:A4').
 
@@ -42,7 +43,8 @@ main :-
     writeln('start test'),
     ( bt_scan([X|_],[N|_]) ; true ),
     writeln('after scan'),
-    lagoon(X),
+%    lagoon(X),
+    cellstat(X),
     bt_socket(X, S),
     writeln(socketEstablished(X,S,N)),
     ( N = 'Lagoon' ->
