@@ -28,6 +28,7 @@ static int sockets[MAX_SOCKETS] = {-1,-1,-1,-1,-1,-1,-1,-1,-1,-1};
 static char buf[1024];
 static int plblueonce = 0;
 
+static FILE *db = (FILE *)NULL;
 
 void notrace(void) {
   term_t nt = PL_new_term_ref();
@@ -215,6 +216,10 @@ pl_converse(term_t s, term_t l, term_t r)
   int index = -1;
   term_t head = PL_new_term_ref();   /* the elements */
   term_t list = PL_copy_term_ref(l); /* copy (we modify list) */
+  if (db == (FILE *)NULL) {
+    db = fopen("dbg.txt","w");
+    setbuf(db,NULL);
+  }
 
   if ( PL_get_integer(s, &index)  == FALSE )
     PL_fail;
@@ -225,13 +230,18 @@ pl_converse(term_t s, term_t l, term_t r)
   char *cs;
 
   if (PL_is_atom(list)) { // Not a list!
-    if ( PL_get_atom_chars(list, &cs) ) write(sockets[index], cs, strlen(cs));
+    fprintf(db,"atom\n");
+    if ( PL_get_atom_chars(list, &cs) ) {
+        write(sockets[index], cs, strlen(cs));
+	fprintf(db,"SENDATOM[%s]\n",cs);
+    }
     else PL_fail;
   } else {
-
+    fprintf(db,"list\n");
     while( PL_get_list(list, head, list) ) { // Send everything in the list
       if ( PL_get_atom_chars(head, &cs) ) {
 	write(sockets[index], cs, strlen(cs));
+	fprintf(db,"SENDLIST[%s]\n",cs);
       }
       else
 	PL_fail;
@@ -257,6 +267,7 @@ pl_converse(term_t s, term_t l, term_t r)
   }
   if (bytes_read == -1 && (errno == EAGAIN || errno == EWOULDBLOCK))
     sprintf(buf,"timeout(%d).\r\nend_of_data\r\n", index);
+  fprintf(db,"REPLY[%s]\n",buf);
   return PL_unify_string_nchars(r, total_bytes, buf);
 }
 
