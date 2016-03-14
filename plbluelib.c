@@ -28,7 +28,7 @@ static int sockets[MAX_SOCKETS] = {-1,-1,-1,-1,-1,-1,-1,-1,-1,-1};
 static char buf[1024];
 static int plblueonce = 0;
 
-static FILE *db = (FILE *)NULL;
+//static FILE *db = (FILE *)NULL;
 
 void notrace(void) {
   term_t nt = PL_new_term_ref();
@@ -216,10 +216,10 @@ pl_converse(term_t s, term_t l, term_t r)
   int index = -1;
   term_t head = PL_new_term_ref();   /* the elements */
   term_t list = PL_copy_term_ref(l); /* copy (we modify list) */
-  if (db == (FILE *)NULL) {
-    db = fopen("dbg.txt","w");
-    setbuf(db,NULL);
-  }
+  //  if (db == (FILE *)NULL) {
+  //    db = fopen("dbg.txt","w");
+  //    setbuf(db,NULL);
+  //  }
 
   if ( PL_get_integer(s, &index)  == FALSE )
     PL_fail;
@@ -230,18 +230,18 @@ pl_converse(term_t s, term_t l, term_t r)
   char *cs;
 
   if (PL_is_atom(list)) { // Not a list!
-    fprintf(db,"atom\n");
+    //    fprintf(db,"atom\n");
     if ( PL_get_atom_chars(list, &cs) ) {
         write(sockets[index], cs, strlen(cs));
-	fprintf(db,"SENDATOM[%s]\n",cs);
+	//	fprintf(db,"SENDATOM[%s]\n",cs);
     }
     else PL_fail;
   } else {
-    fprintf(db,"list\n");
+    //    fprintf(db,"list\n");
     while( PL_get_list(list, head, list) ) { // Send everything in the list
       if ( PL_get_atom_chars(head, &cs) ) {
 	write(sockets[index], cs, strlen(cs));
-	fprintf(db,"SENDLIST[%s]\n",cs);
+	//	fprintf(db,"SENDLIST[%s]\n",cs);
       }
       else
 	PL_fail;
@@ -267,7 +267,7 @@ pl_converse(term_t s, term_t l, term_t r)
   }
   if (bytes_read == -1 && (errno == EAGAIN || errno == EWOULDBLOCK))
     sprintf(buf,"timeout(%d).\r\nend_of_data\r\n", index);
-  fprintf(db,"REPLY[%s]\n",buf);
+  //  fprintf(db,"REPLY[%s]\n",buf);
   return PL_unify_string_nchars(r, total_bytes, buf);
 }
 
@@ -303,10 +303,15 @@ pl_bluetooth_socket(term_t mac, term_t n)
 }
 /* Returns file descriptor for a Bluetooth connection */
 
+#define NETDOWN    10050L
+#define NETUNREACH 10051L
+#define NETTIMEOUT 10060L
 
 int bluetoothSocket(char *dest) {
+  int lasterror;
   char buf[100];
   int tries = 10;
+  int once;
   if (plblueonce == 0) { plblueonce = 1; initialize;}
 #ifdef WINDOWS
     mystr2ba( dest, &addr.rc_bdaddr );
@@ -325,11 +330,27 @@ int bluetoothSocket(char *dest) {
     notrace();
     PL_fail;
   }
-  while ( connect(s, (struct sockaddr *)&addr, sizeof(addr)) && 0 < tries-- ) {
+  lasterror = 0;
+  once = 1;
+  while ( lasterror != NETDOWN &&
+	  connect(s, (struct sockaddr *)&addr, sizeof(addr)) && 0 < tries-- ) {
 #ifdef WINDOWS
-    PL_warning("connect returned non zero %s %d",dest, WSAGetLastError());
+    lasterror = WSAGetLastError();
+    if (lasterror == NETDOWN) {
+      PL_warning("NETWORK DOWN: Is your Bluetooth receiver installed?");
+      notrace();
+      close(s);
+      s = -1;
+      break;
+    } else if (lasterror == NETUNREACH || lasterror == NETTIMEOUT) {
+      if (once) {
+	PL_warning("Bluetooth client(%s) hasn't responded.", dest);
+        once = 0;
+      }
+   } else
+      PL_warning("connect returned non zero %s %d", dest, lasterror);
 #else
-    PL_warning("connect returned non zero %s %d",dest, 0);
+      PL_warning("connect to (%s) failed: errno %d",dest, errno);
 #endif
       notrace();
       close(s);
@@ -342,8 +363,11 @@ int bluetoothSocket(char *dest) {
 	s = socket(AF_BLUETOOTH, SOCK_STREAM, BTPROTO_RFCOMM);
 #endif
       }
-      PL_warning("Bluetooth connection failed. Retrying with new socket");
-      notrace();
+      if (lasterror != NETDOWN) {
+	PL_warning("Bluetooth connection failed. Retry(%d) with new socket",
+		   5-(tries/2));
+	notrace();
+      }
   }
   //  PL_warning("after connect");
   if (tries < 0) {
