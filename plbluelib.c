@@ -348,9 +348,9 @@ int bluetoothSocket(char *dest) {
         once = 0;
       }
    } else
-      PL_warning("connect returned non zero %s %d", dest, lasterror);
+      PL_warning("connect returned non zero %s %s", dest, strerror(lasterror));
 #else
-      PL_warning("connect to (%s) failed: errno %d",dest, errno);
+    PL_warning("connect to (%s) failed: %s",dest, strerror(errno));
 #endif
       notrace();
       close(s);
