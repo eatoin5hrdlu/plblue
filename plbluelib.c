@@ -255,6 +255,8 @@ pl_converse(term_t s, term_t l, term_t r)
   memset(buf,0,1024);
   total_bytes = 0;
 
+  sleep(2);   // Completely necessary!!!! If Arduinos slow down this will
+              // need to be longer to give the 'dweeno a chance to respond
   bytes_read = read(sockets[index], &buf[total_bytes], sizeof(buf)-total_bytes);
   while (bytes_read > 0) {
     total_bytes += bytes_read;
