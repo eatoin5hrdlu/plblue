@@ -5,11 +5,13 @@
 #include <string.h>
 #include <w32api/winsock2.h>  // Includes windows.h
 #include <w32api/ws2bth.h>
+/*
 #define ESOCKTNOSUPPORT     WSAESOCKTNOSUPPORT
 #define ETIMEDOUT    WSAETIMEDOUT
 #define ECONNREFUSED WSAECONNREFUSED
 #define EHOSTDOWN    WSAEHOSTDOWN
 #define EINPROGRESS  WSAEINPROGRESS
+*/
 #define bdaddr_t     BTH_ADDR
 #define sockaddr_rc  _SOCKADDR_BTH
 #define rc_family    addressFamily
