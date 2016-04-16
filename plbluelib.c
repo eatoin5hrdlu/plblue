@@ -210,6 +210,26 @@ int check_for(char *buf,int total_bytes,char *eof)
   return rval;
 }
 
+// Send a string of zero bytes to reset the Arduino
+#define NUMNULLS  10
+foreign_t
+pl_areset(term_t s)
+{ 
+  int index = -1;
+  int i;
+  char zeros[NUMNULLS];
+
+  if ( PL_get_integer(s, &index)  == FALSE )
+    PL_fail;
+
+  if (index < 0 || index >= next_socket || sockets[index] == -1)
+    PL_fail;
+  for(i=0;i<NUMNULLS;i++) zeros[i] = 0;
+  for(i=0;i<100;i++)
+    write(sockets[index], zeros, NUMNULLS);
+  PL_succeed;
+}
+
 foreign_t
 pl_converse(term_t s, term_t l, term_t r)
 { 
@@ -255,8 +275,8 @@ pl_converse(term_t s, term_t l, term_t r)
   memset(buf,0,1024);
   total_bytes = 0;
 
-  sleep(2);   // Completely necessary!!!! If Arduinos slow down this will
-              // need to be longer to give the 'dweeno a chance to respond
+  sleep(2);   // Completely necessary!!!! As Arduinos slow down this
+              // needs to be longer to give the arduino time to respond
   bytes_read = read(sockets[index], &buf[total_bytes], sizeof(buf)-total_bytes);
   while (bytes_read > 0) {
     total_bytes += bytes_read;
@@ -426,6 +446,7 @@ static PL_extension predicates [] =
 {
   { "bt_socket",    2, pl_bluetooth_socket, 0 },
   { "bt_converse",  3, pl_converse,         0 },
+  { "bt_areset",    1, pl_areset,           0 },
   { "bt_scan",      2, pl_scan,             0 },
   { "bt_close",     1, pl_bt_close,         0 },
   { "bt_reset",     0, pl_bt_reset,         0 },
