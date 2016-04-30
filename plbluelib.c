@@ -87,6 +87,27 @@ void mystr2ba(char *btaddr, BTH_ADDR *addr)
   *addr = packed;
 }
 #endif
+
+/* Send a reset string (zeros) */
+#define NUMNULLS  10
+foreign_t
+pl_areset(term_t s)
+{ 
+  int index = -1;
+  int i;
+  char zeros[NUMNULLS];
+
+  if ( PL_get_integer(s, &index)  == FALSE )
+    PL_fail;
+
+  if (index < 0 || index >= next_socket || sockets[index] == -1)
+    PL_fail;
+  for(i=0;i<NUMNULLS;i++) zeros[i] = 0;
+  for(i=0;i<100;i++)
+    write(sockets[index], zeros, NUMNULLS);
+  PL_succeed;
+}
+
 // Close all open bluetooth sockets and re-initialize socket table
 foreign_t
 pl_bt_reset()
@@ -255,7 +276,7 @@ pl_converse(term_t s, term_t l, term_t r)
   memset(buf,0,1024);
   total_bytes = 0;
 
-  sleep(2);   // Completely necessary!!!! If Arduinos slow down this will
+  sleep(3);   // Completely necessary!!!! If Arduinos slow down this will
               // need to be longer to give the 'dweeno a chance to respond
   bytes_read = read(sockets[index], &buf[total_bytes], sizeof(buf)-total_bytes);
   int tri = 3;
@@ -434,6 +455,7 @@ static PL_extension predicates [] =
   { "bt_converse",  3, pl_converse,         0 },
   { "bt_scan",      2, pl_scan,             0 },
   { "bt_close",     1, pl_bt_close,         0 },
+  { "bt_areset",    1, pl_areset,           0 },
   { "bt_reset",     0, pl_bt_reset,         0 },
   { "float_codes",  2, pl_float_codes,      0 },
   { "float_codes",  3, dcg_float_codes,     0 },
