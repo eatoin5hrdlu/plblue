@@ -25,7 +25,6 @@ endif
 all :	$(SHARED)
 
 install: $(SHARED)
-	cp $(SHARED) ../PACE
 	cp $(SHARED) ../EvoStat
 
 clean:	
