@@ -237,10 +237,6 @@ pl_converse(term_t s, term_t l, term_t r)
   int index = -1;
   term_t head = PL_new_term_ref();   /* the elements */
   term_t list = PL_copy_term_ref(l); /* copy (we modify list) */
-  //  if (db == (FILE *)NULL) {
-  //    db = fopen("dbg.txt","w");
-  //    setbuf(db,NULL);
-  //  }
 
   if ( PL_get_integer(s, &index)  == FALSE )
     PL_fail;
@@ -308,6 +304,12 @@ pl_bluetooth_socket(term_t mac, term_t n)
   struct timeval timeout;      
   timeout.tv_sec = 10;
   timeout.tv_usec = 0;
+  //  if (db == (FILE *)NULL) {
+  //    db = fopen("dbg.txt","w");
+  //    setbuf(db,NULL);
+  //  }
+
+  if (!PL_is_atom(mac)) PL_fail;
 
   PL_get_atom_chars(mac,&dest);
   s = bluetoothSocket(dest);
@@ -379,7 +381,7 @@ int bluetoothSocket(char *dest) {
    } else
       PL_warning("connect returned non zero %s %s", dest, strerror(lasterror));
 #else
-    PL_warning("connect to (%s) failed: %s",dest, strerror(errno));
+    PL_warning("connect to (%s) failed: %s", dest, strerror(errno));
 #endif
       notrace();
       close(s);
@@ -399,7 +401,7 @@ int bluetoothSocket(char *dest) {
       }
   }
   //  PL_warning("after connect");
-  if (tries < 0) {
+  if (tries < 2) {
     if (s != -1) close(s);
     return -1;
   }
