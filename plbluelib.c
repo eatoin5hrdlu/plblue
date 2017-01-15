@@ -29,8 +29,8 @@ static char buf[1024];
 static int plblueonce = 0;
 
 //static FILE *db = (FILE *)NULL;
-
-void notrace(void) {
+// Must turn off tracing after PL_warning
+void notrace(void) {  
   term_t nt = PL_new_term_ref();
   PL_unify_atom_chars(nt, "notrace");
   PL_call(nt,NULL);
@@ -359,7 +359,7 @@ int bluetoothSocket(char *dest) {
   if (s == -1) {
     PL_warning("Failed to create a Bluetooth socket");
     notrace();
-    PL_fail;
+    return(-1);
   }
   lasterror = 0;
   once = 1;
