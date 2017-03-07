@@ -36,6 +36,9 @@ rendezvous : rendezvous.cpp
 bluetest : bluetest.cpp Makefile
 	gcc -Wno-write-strings $(OSDEF) -o bluetest bluetest.cpp $(LIBS)
 
+bluestream : bluestream.cpp Makefile
+	gcc -Wno-write-strings $(OSDEF) -o bluestream bluestream.cpp $(LIBS)
+
 test1 : bluetest
 	./bluetest $(CELLSTAT)
 
