@@ -76,6 +76,8 @@ void bluestream(int s) {
 	fprintf(stdout,"%s",buf);
       else
 	sleep(0.2);
+      if (bytes_read < 0 && errno != EAGAIN)
+	return;
     }
 }
 
