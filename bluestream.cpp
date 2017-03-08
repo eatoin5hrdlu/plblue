@@ -1,5 +1,5 @@
 /*
- * C program to stream data from Bluetooth serial device
+* C program to stream data from Bluetooth serial device
  * Compile with:
  * Linux      gcc -Wno-write-strings -o bluetest bluetest.cpp -lbluetooth
  * Windows     "          "               "           "       -lwsock32
@@ -70,11 +70,11 @@ void bluestream(int s) {
   while(1)
     {
       memset(buf,0,1024);
-      sleep(0.1);
       bytes_read = read(s, buf, sizeof(buf));
-      if( bytes_read > 0 )
+      if( bytes_read > 0 ) {
 	fprintf(stdout,"%s",buf);
-      else
+	fflush(stdout);
+      } else
 	sleep(0.2);
       if (bytes_read < 0 && errno != EAGAIN)
 	return;

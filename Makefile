@@ -22,10 +22,11 @@ else
 	OSDEF=-DLINUX=1
 endif
 
-all :	$(SHARED)
+all :	$(SHARED) bluestream
 
-install: $(SHARED)
+install: $(SHARED) bluestream
 	cp $(SHARED) ../EvoStat
+	cp bluestream ../waters
 
 clean:	
 	rm $(SHARED)
