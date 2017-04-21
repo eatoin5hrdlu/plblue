@@ -11,6 +11,7 @@
 #else
 #include "plbluelinux.h"
 #endif
+#define DEBUG 1
 
 //#include <stdio.h>
 //#include <stdlib.h>
@@ -28,8 +29,10 @@ static int sockets[MAX_SOCKETS] = {-1,-1,-1,-1,-1,-1,-1,-1,-1,-1};
 static char buf[1024];
 static int plblueonce = 0;
 
-//static FILE *db = (FILE *)NULL;
-// Must turn off tracing after PL_warning
+#ifdef DEBUG
+static FILE *db = (FILE *)NULL;
+#endif
+// Always turn off tracing after PL_warning
 void notrace(void) {  
   term_t nt = PL_new_term_ref();
   PL_unify_atom_chars(nt, "notrace");
@@ -234,7 +237,10 @@ int check_for(char *buf,int total_bytes,char *eof)
 foreign_t
 pl_converse(term_t s, term_t l, term_t r)
 { 
+  int bytes_read;
+  int total_bytes;
   int index = -1;
+  char *cs;
   term_t head = PL_new_term_ref();   /* the elements */
   term_t list = PL_copy_term_ref(l); /* copy (we modify list) */
 
@@ -244,21 +250,40 @@ pl_converse(term_t s, term_t l, term_t r)
   if (index < 0 || index >= next_socket || sockets[index] == -1)
     PL_fail;
 
-  char *cs;
+  bytes_read = recv(sockets[index], &buf[0], 1,MSG_DONTWAIT);
+  while (bytes_read == 1) { // Discard previous reply and/or noise
+#ifdef DEBUG
+    fprintf(db,"[%c]\n",buf[0]);
+    fflush(db);
+#endif
+    bytes_read = read(sockets[index], &buf[0], 1);
+  }
 
   if (PL_is_atom(list)) { // Not a list!
-    //    fprintf(db,"atom\n");
+#ifdef DEBUG
+    fprintf(db,"atom\n");
+    fflush(db);
+#endif
     if ( PL_get_atom_chars(list, &cs) ) {
         write(sockets[index], cs, strlen(cs));
-	//	fprintf(db,"SENDATOM[%s]\n",cs);
+#ifdef DEBUG
+	fprintf(db,"SENDATOM[%d,%s]\n",sockets[index],cs);
+	fflush(db);
+#endif
     }
     else PL_fail;
   } else {
-    //    fprintf(db,"list\n");
+#ifdef DEBUG
+    fprintf(db,"list\n");
+    fflush(db);
+#endif
     while( PL_get_list(list, head, list) ) { // Send everything in the list
       if ( PL_get_atom_chars(head, &cs) ) {
 	write(sockets[index], cs, strlen(cs));
-	//	fprintf(db,"SENDLIST[%s]\n",cs);
+#ifdef DEBUG
+	fprintf(db,"SENDLIST[%s]\n",cs);
+	fflush(db);
+#endif
       }
       else
 	PL_fail;
@@ -266,20 +291,25 @@ pl_converse(term_t s, term_t l, term_t r)
     if (PL_get_nil(list) == FALSE)  /* test end for [] */
       PL_fail;
   } // End of Sending List
+#ifdef DEBUG
+    fprintf(db,"input cleared, command sent\n");
+    fflush(db);
+#endif
 
-  int bytes_read;
-  int total_bytes;
   memset(buf,0,1024);
   total_bytes = 0;
-
-  sleep(3);   // Completely necessary!!!! If Arduinos slow down this will
-              // need to be longer to give the 'dweeno a chance to respond
-  bytes_read = read(sockets[index], &buf[total_bytes], sizeof(buf)-total_bytes);
-  int tri = 3;
-  while (bytes_read == 0 && tri-- > 0) { //Needs more time?
-    sleep(1);
+  bytes_read = 0;
+  int tri = 6;
+  while(bytes_read == 0 && tri-- > 0)
+  {
     bytes_read = read(sockets[index], &buf[total_bytes], sizeof(buf)-total_bytes);
+    if (bytes_read) break;
+    sleep(1); // May have to wait for beginning of response
   }
+#ifdef DEBUG
+    fprintf(db,"some results...or exhasted trying\n");
+    fflush(db);
+#endif
     
   while (bytes_read > 0) {
     total_bytes += bytes_read;
@@ -288,11 +318,15 @@ pl_converse(term_t s, term_t l, term_t r)
     if (check_for(buf,total_bytes,"end_of_data\r\n")) // Quit reading
       break;
     sleep(1);  // Give the guy a chance to respond fully
-    bytes_read = read(sockets[index],&buf[total_bytes], sizeof(buf)-total_bytes);
+    bytes_read = recv(sockets[index], &buf[total_bytes],
+      sizeof(buf)-total_bytes, MSG_DONTWAIT);
   }
   if (bytes_read == -1 && (errno == EAGAIN || errno == EWOULDBLOCK))
-    sprintf(buf,"timeout(%d).\r\nend_of_data\r\n", index);
-  //  fprintf(db,"REPLY[%s]\n",buf);
+    sprintf(buf,"timeout(%d,%d).\r\nend_of_data\r\n", index,errno);
+#ifdef DEBUG
+  fprintf(db,"all results: REPLY[%s]\n",buf);
+  fflush(db);
+#endif
   return PL_unify_string_nchars(r, total_bytes, buf);
 }
 
@@ -304,11 +338,12 @@ pl_bluetooth_socket(term_t mac, term_t n)
   struct timeval timeout;      
   timeout.tv_sec = 10;
   timeout.tv_usec = 0;
-  //  if (db == (FILE *)NULL) {
-  //    db = fopen("dbg.txt","w");
-  //    setbuf(db,NULL);
-  //  }
-
+#ifdef DEBUG
+  if (db == (FILE *)NULL) {
+     db = fopen("dbg.txt","w");
+     setbuf(db,NULL);
+  }
+#endif
   if (!PL_is_atom(mac)) PL_fail;
 
   PL_get_atom_chars(mac,&dest);
