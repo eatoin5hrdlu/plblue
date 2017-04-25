@@ -250,7 +250,8 @@ pl_converse(term_t s, term_t l, term_t r)
   if (index < 0 || index >= next_socket || sockets[index] == -1)
     PL_fail;
 
-  bytes_read = recv(sockets[index], &buf[0], 1,MSG_DONTWAIT);
+ retry_eagain:
+  bytes_read = recv(sockets[index], &buf[0], 1, MSG_DONTWAIT);
   while (bytes_read == 1) { // Discard previous reply and/or noise
 #ifdef DEBUG
     fprintf(db,"[%c]\n",buf[0]);
@@ -291,6 +292,7 @@ pl_converse(term_t s, term_t l, term_t r)
     if (PL_get_nil(list) == FALSE)  /* test end for [] */
       PL_fail;
   } // End of Sending List
+//  write(sockets[index], "\n", 1);
 #ifdef DEBUG
     fprintf(db,"input cleared, command sent\n");
     fflush(db);
@@ -300,14 +302,20 @@ pl_converse(term_t s, term_t l, term_t r)
   total_bytes = 0;
   bytes_read = 0;
   int tri = 6;
-  while(bytes_read == 0 && tri-- > 0)
+  while ((bytes_read == 0 && tri-- > 0)|| errno == EAGAIN)
   {
     bytes_read = read(sockets[index], &buf[total_bytes], sizeof(buf)-total_bytes);
-    if (bytes_read) break;
-    sleep(1); // May have to wait for beginning of response
+    if (bytes_read == -1 && errno == EAGAIN) {  // Total restart
+#ifdef DEBUG
+	fprintf(db,"goto retry after EAGAIN\n",errno);
+	fflush(db);
+#endif
+	goto retry_eagain;
+    }
+    if (bytes_read > 0) break;
   }
 #ifdef DEBUG
-    fprintf(db,"some results...or exhasted trying\n");
+    fprintf(db,"some results...or exhasted(%d) trying\n",tri);
     fflush(db);
 #endif
     
@@ -318,8 +326,8 @@ pl_converse(term_t s, term_t l, term_t r)
     if (check_for(buf,total_bytes,"end_of_data\r\n")) // Quit reading
       break;
     sleep(1);  // Give the guy a chance to respond fully
-    bytes_read = recv(sockets[index], &buf[total_bytes],
-      sizeof(buf)-total_bytes, MSG_DONTWAIT);
+    bytes_read = read(sockets[index], &buf[total_bytes],
+		      sizeof(buf)-total_bytes); // recv(..., MSG_DONTWAIT);
   }
   if (bytes_read == -1 && (errno == EAGAIN || errno == EWOULDBLOCK))
     sprintf(buf,"timeout(%d,%d).\r\nend_of_data\r\n", index,errno);
