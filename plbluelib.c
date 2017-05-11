@@ -12,7 +12,15 @@
 #include "plbluelinux.h"
 #endif
 #define DEBUG 1
-
+// Recovery for EAGAIN error may require
+// 1) Re-trying:
+//        a) clear input
+//        b) send command
+//        c) try to read result
+// 2)  Sending RESET to Arduino then retry 1
+// 3)  Close and reopen Bluetooth Socket then retry 2
+//
+//
 //#include <stdio.h>
 //#include <stdlib.h>
 //#include <unistd.h>
@@ -240,6 +248,7 @@ pl_converse(term_t s, term_t l, term_t r)
   int bytes_read;
   int total_bytes;
   int index = -1;
+  int retries = 0;
   char *cs;
   term_t head = PL_new_term_ref();   /* the elements */
   term_t list = PL_copy_term_ref(l); /* copy (we modify list) */
@@ -251,6 +260,8 @@ pl_converse(term_t s, term_t l, term_t r)
     PL_fail;
 
  retry_eagain:
+  if (retries > 250) PL_fail; // Recovered once after 200+ failures!
+  
   bytes_read = recv(sockets[index], &buf[0], 1, MSG_DONTWAIT);
   while (bytes_read == 1) { // Discard previous reply and/or noise
 #ifdef DEBUG
@@ -268,7 +279,7 @@ pl_converse(term_t s, term_t l, term_t r)
     if ( PL_get_atom_chars(list, &cs) ) {
         write(sockets[index], cs, strlen(cs));
 #ifdef DEBUG
-	fprintf(db,"SENDATOM[%d,%s]\n",sockets[index],cs);
+	fprintf(db,"SENDATOM[%d,%d,%s]\n",index,sockets[index],cs);
 	fflush(db);
 #endif
     }
@@ -302,7 +313,13 @@ pl_converse(term_t s, term_t l, term_t r)
   total_bytes = 0;
   bytes_read = 0;
   int tri = 6;
-  while ((bytes_read == 0 && tri-- > 0)|| errno == EAGAIN)
+  if (errno != 0) {
+#ifdef DEBUG
+	fprintf(db,"errno == %d before while\n",errno);
+	fflush(db);
+#endif
+  }
+  while (bytes_read == 0 && tri-- > 0)
   {
     bytes_read = read(sockets[index], &buf[total_bytes], sizeof(buf)-total_bytes);
     if (bytes_read == -1 && errno == EAGAIN) {  // Total restart
@@ -310,6 +327,8 @@ pl_converse(term_t s, term_t l, term_t r)
 	fprintf(db,"goto retry after EAGAIN\n",errno);
 	fflush(db);
 #endif
+	retries++;
+	sleep(1);
 	goto retry_eagain;
     }
     if (bytes_read > 0) break;
