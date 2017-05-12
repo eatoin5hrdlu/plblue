@@ -242,6 +242,21 @@ int check_for(char *buf,int total_bytes,char *eof)
   return rval;
 }
 
+// Read last errno or reset it
+foreign_t
+pl_errno(term_t num)
+{
+  int setval;
+  if ( PL_get_integer(num, &setval) )
+    errno = setval;
+  else
+    {
+      setval = errno;
+      return(PL_unify_integer(num, (intptr_t)setval));
+    }
+  PL_succeed;
+}
+
 foreign_t
 pl_converse(term_t s, term_t l, term_t r)
 { 
@@ -260,9 +275,11 @@ pl_converse(term_t s, term_t l, term_t r)
     PL_fail;
 
  retry_eagain:
-  if (retries > 250) PL_fail; // Recovered once after 200+ failures!
+  if (retries > 10) PL_fail; // Recovered once after 200+ failures!
   
   bytes_read = recv(sockets[index], &buf[0], 1, MSG_DONTWAIT);
+  if (errno == ENOTCONN) PL_fail;
+  
   while (bytes_read == 1) { // Discard previous reply and/or noise
 #ifdef DEBUG
     fprintf(db,"[%c]\n",buf[0]);
@@ -523,6 +540,7 @@ static PL_extension predicates [] =
   { "bt_reset",     0, pl_bt_reset,         0 },
   { "float_codes",  2, pl_float_codes,      0 },
   { "float_codes",  3, dcg_float_codes,     0 },
+  { "bt_errno",     1, pl_errno,            0 },
   { NULL, 0, NULL, 0 } /* terminator */
 };
 
