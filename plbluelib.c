@@ -248,10 +248,20 @@ pl_errno(term_t num)
 {
   int setval;
   if ( PL_get_integer(num, &setval) )
+    {
     errno = setval;
+#ifdef DEBUG
+    fprintf(db,"setting errno = %d\n",errno);
+    fflush(db);
+#endif
+    }
   else
     {
       setval = errno;
+#ifdef DEBUG
+    fprintf(db,"getting errno = %d\n",errno);
+    fflush(db);
+#endif
       return(PL_unify_integer(num, (intptr_t)setval));
     }
   PL_succeed;
@@ -382,12 +392,6 @@ pl_bluetooth_socket(term_t mac, term_t n)
   struct timeval timeout;      
   timeout.tv_sec = 10;
   timeout.tv_usec = 0;
-#ifdef DEBUG
-  if (db == (FILE *)NULL) {
-     db = fopen("dbg.txt","w");
-     setbuf(db,NULL);
-  }
-#endif
   if (!PL_is_atom(mac)) PL_fail;
 
   PL_get_atom_chars(mac,&dest);
@@ -544,6 +548,30 @@ static PL_extension predicates [] =
   { NULL, 0, NULL, 0 } /* terminator */
 };
 
-install_t install_plblue() { PL_load_extensions(predicates); }
-install_t install() { PL_load_extensions(predicates); }
+install_t install_plblue()
+{
+  PL_load_extensions(predicates);
+#ifdef DEBUG
+  if (db == (FILE *)NULL) {
+     db = fopen("dbg.txt","w");
+     setbuf(db,NULL);
+  }
+  errno = 0;
+  fprintf(db,"install_plblue: tried to zero errno = %d\n",errno);
+  fflush(db);
+#endif
+}
+install_t install()
+{
+  PL_load_extensions(predicates);
+#ifdef DEBUG
+  if (db == (FILE *)NULL) {
+     db = fopen("dbg.txt","w");
+     setbuf(db,NULL);
+  }
+  errno = 0;
+  fprintf(db,"install: tried to zero errno = %d\n",errno);
+  fflush(db);
+#endif
+}
 
