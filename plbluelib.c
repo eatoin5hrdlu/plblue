@@ -143,9 +143,8 @@ pl_bt_close(term_t t1)
   int index = -1;
   if ( PL_get_integer(t1, &index)  == FALSE )
     PL_fail;
-  if (index < 0 || index  >= next_socket || sockets[index] == -1) {
-    PL_fail;
-  }
+  if (index < 0 || index  >= next_socket || sockets[index] == -1)
+    PL_succeed;
   close(sockets[index]);
   sockets[index] = -1;
   PL_succeed;
@@ -273,7 +272,7 @@ pl_converse(term_t s, term_t l, term_t r)
   int bytes_read;
   int total_bytes;
   int index = -1;
-  int retries = 0;
+  unsigned int retries = 0;
   char *cs;
   term_t head = PL_new_term_ref();   /* the elements */
   term_t list = PL_copy_term_ref(l); /* copy (we modify list) */
@@ -285,7 +284,7 @@ pl_converse(term_t s, term_t l, term_t r)
     PL_fail;
 
  retry_eagain:
-  if (retries > 10) PL_fail; // Recovered once after 200+ failures!
+  if (retries > 3) PL_fail; // Recovered once after 200+ failures!
   
   bytes_read = recv(sockets[index], &buf[0], 1, MSG_DONTWAIT);
   if (errno == ENOTCONN) PL_fail;
@@ -351,7 +350,7 @@ pl_converse(term_t s, term_t l, term_t r)
     bytes_read = read(sockets[index], &buf[total_bytes], sizeof(buf)-total_bytes);
     if (bytes_read == -1 && errno == EAGAIN) {  // Total restart
 #ifdef DEBUG
-	fprintf(db,"goto retry after EAGAIN\n",errno);
+        fprintf(db,"goto retry(%d) after EAGAIN(%d)\n",retries,errno);
 	fflush(db);
 #endif
 	retries++;
