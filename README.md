@@ -1,6 +1,8 @@
 # plblue
 Bluetooth API for SWI-Prolog
 
+Packages needed:  apt-get install bluez bluez-tools libbluetooth-dev
+
 Mostly working code to scan, connect, send/receive text with devices supporting SPP protocol.
 File bluelib.c is compiled with swipl-ld into a shared object file to be loaded by load_foreign_function/3.
 
@@ -27,4 +29,3 @@ Not handling pairing at the moment since there are usually tools for that on eve
        
        bt_set_eot(+EndOfTransmission)   -- Change the default "end_of_data\r\n" marker to the characters in EndOfTransmission.
        
-        
