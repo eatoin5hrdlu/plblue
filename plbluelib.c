@@ -375,7 +375,13 @@ pl_converse(term_t s, term_t l, term_t r)
 		      sizeof(buf)-total_bytes); // recv(..., MSG_DONTWAIT);
   }
   if (bytes_read == -1 && (errno == EAGAIN || errno == EWOULDBLOCK))
-    sprintf(buf,"timeout(%d,%d).\r\nend_of_data\r\n", index,errno);
+    {
+      char buff[100];  // copy incomplete transmission here
+      strncpy(buff,buf,total_bytes);
+      buff[total_bytes] = '\0';  // strncpy does not add null byte
+      sprintf(buf,"timeout(%d,%d,'%s').\r\nend_of_data\r\n", index,errno,buff);
+      total_bytes = strlen(buf);
+    }
 #ifdef DEBUG
   fprintf(db,"all results: REPLY[%s]\n",buf);
   fflush(db);
